@@ -1,23 +1,24 @@
 //
-//  PlayerInputState.swift
+//  PlayerFiveMarksState.swift
 //  XO-game
 //
-//  Created by Михаил Киржнер on 29.03.2022.
+//  Created by Михаил Киржнер on 04.04.2022.
 //  Copyright © 2022 plasmon. All rights reserved.
 //
 
 import Foundation
 
-public class PlayerInputState: GameState {
-    
+public class PlayerFiveMarksState: GameState {
+    private static var playerMarks: [Player: [GameboardPosition]] = [:]
     public private(set) var isCompleted = false
+
     public let markViewPrototype: MarkView
-    
     public let player: Player
+
     private(set) weak var gameViewController: GameViewController?
     private(set) weak var gameboard: Gameboard?
     private(set) weak var gameboardView: GameboardView?
-    
+
     init(player: Player, markViewPrototype: MarkView, gameViewController: GameViewController, gameboard: Gameboard, gameboardView: GameboardView) {
         self.player = player
         self.markViewPrototype = markViewPrototype
@@ -25,7 +26,7 @@ public class PlayerInputState: GameState {
         self.gameboard = gameboard
         self.gameboardView = gameboardView
     }
-    
+
     public func begin() {
         switch player {
         case .first:
@@ -37,16 +38,41 @@ public class PlayerInputState: GameState {
         }
         gameViewController?.winnerLabel.isHidden = true
     }
-    
+
     public func addMark(at position: GameboardPosition) {
         Log(.playerInput(player: player, position: position))
-        
+
         guard let gameboardView = self.gameboardView,
-              gameboardView.canPlaceMarkView(at: position)
+              gameboardView.canPlaceMarkView(at: position),
+              let gameboard = self.gameboard
         else { return }
-        
-        gameboard?.setPlayer(player, at: position)
+
+        gameboard.setPlayer(player, at: position)
         self.gameboardView?.placeMarkView(markViewPrototype.copy(), at: position)
+
+        // Создаем комманду и добавлем ее в очередь
+
+        let command = PlayerCommand(
+            gameboardView: gameboardView,
+            gameboard: gameboard,
+            position: position, player: player
+        )
+
+        PlayerInvoker.shared.addCommand(player: player, command: command)
+
+        if PlayerInvoker.shared.isCommandByPlayerComplete(player: player) {
+            playerComplete()
+            return
+        }
+    }
+
+    private func playerComplete() {
         isCompleted = true
+        gameboard?.clear()
+        gameboardView?.clear()
+
+        if PlayerInvoker.shared.isCommandsComplete() {
+            PlayerInvoker.shared.runCommands()
+        }
     }
 }
